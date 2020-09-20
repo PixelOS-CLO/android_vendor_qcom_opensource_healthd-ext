@@ -15,10 +15,6 @@
 
 #define ARRAY_SIZE(x)     (sizeof(x) / sizeof((x)[0]))
 
-extern "C" {
-#include <libsoc_helper.h>
-}
-
 typedef enum soc_id {
         MSM_NEO_LA = 554,
         MSM_NEO_LE = 525,
@@ -63,6 +59,7 @@ static constexpr std::array<std::string_view, 3> ucsiPSYNames = {
 
 void qti_healthd_board_init(struct healthd_config *hc)
 {
+    FILE *fp = NULL;
     int fd;
     unsigned char retries = RETRY_COUNT;
     int ret = 0;
@@ -70,7 +67,7 @@ void qti_healthd_board_init(struct healthd_config *hc)
     char prop_str[PROPERTY_VALUE_MAX];
     int soc_id_prop = 0;
     bool is_no_batt_psy;
-    soc_info_v0_1_t soc;
+    int soc = property_get_int32("ro.vendor.qti.soc_id", -1);
 
     hc->ignorePowerSupplyNames.push_back(android::String8(ucsiPSYNames[0]));
     hc->ignorePowerSupplyNames.push_back(android::String8(ucsiPSYNames[1]));
@@ -78,8 +75,11 @@ void qti_healthd_board_init(struct healthd_config *hc)
 
     is_no_batt_psy = property_get_bool("persist.vendor.hal_health.no_batt_psy", false);
 
-    get_soc_info(&soc);
-    soc_id_prop = soc.msm_cpu;
+    if (soc <= 0 && (fp = fopen("/sys/devices/soc0/soc_id", "r")) != NULL) {
+        fscanf(fp, "%u", &soc);
+        fclose(fp);
+    }
+    soc_id_prop = soc;
 
     if (!is_no_batt_psy) {
         for (int idx = 0; idx < ARRAY_SIZE(target_no_psy); idx++) {
